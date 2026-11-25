@@ -1,5 +1,7 @@
 # XPCard — Addon Specification
 
+> Status: v0.1.0. Sections 3.4–3.6 were added after the first in-game test.
+
 A minimal, background-less XP tracking card for **World of Warcraft: Forever**.
 
 > Working name: `XPCard` (rename freely — folder name, `.toc` name and SavedVariables must all match).
@@ -114,12 +116,32 @@ To level      ~37 mobs
 
 ### 3.3 Interaction
 
-- **Move:** Shift + left-drag. The card only takes the mouse while Shift is held (a faint highlight shows it can be dragged), so normal clicks pass through to the world. Position saved per character.
+- **Move:** Shift + left-drag. The card only takes the mouse while Shift is held (no visual change), so normal clicks pass through to the world. Position saved per character.
 - **Lock:** `/xpc lock` disables dragging.
 - **Opacity:** a slider from 0.2 to 1.0 (step 0.05, default 1.0) that sets `frame:SetAlpha()`.
   - It lives in the addon's page under Options → AddOns, registered with the modern `Settings` API (`Settings.RegisterVerticalLayoutCategory` + `Settings.CreateSlider`).
-  - Also: `/xpc opacity 0.6`.
+  - Also: `/xpc opacity 0.6`. (Superseded by 3.4: this is now *text* opacity.)
 - **Scale (nice-to-have):** a second slider, 0.7–1.5.
+
+
+### 3.4 Background (optional, off by default)
+
+- Toggle, color (color picker or `/xpc bgcolor RRGGBB`), opacity 0.05–1 (default 0.4), optional 1px dark border.
+- Built with `BackdropTemplate` on the card frame. All text, the reset button and the XP bar live in a child `content` frame, so **text opacity** (`content:SetAlpha`) and **background opacity** (backdrop color alpha) are independent.
+- The old single "opacity" setting is migrated to `textOpacity`.
+
+### 3.5 Rows, XP bar, compact mode
+
+- Each row can be hidden; the card height reflows. Hiding *Kills* also hides the reset button. If *To level* is hidden, the *Time to level* row gets its own label.
+- XP bar: 2px bar along the bottom, current XP in the accent color with rested XP (`GetXPExhaustion()`) shaded blue behind it. Hidden at max level.
+- Compact mode: one line, `1:23:45 · 48.2k xp · 35.1k/h · 142 kills · ~37 to lvl · ~18m`, honoring the row toggles. Width follows the text, rounded up to 10px to avoid jitter.
+
+### 3.6 AFK pause (on by default)
+
+- On `PLAYER_FLAGS_CHANGED`, if `UnitIsAFK("player")`: store `session.afkSince = time()`. On return, add the gap to `session.paused`.
+- `elapsed = now - startTime - paused - (afkSince and now - afkSince or 0)`. Persisted, so it survives `/reload`.
+- The session value turns grey with an "AFK" tag while paused.
+- No highlight on Shift: the card silently becomes draggable while Shift is held (removed after testing, as it was distracting).
 
 ---
 

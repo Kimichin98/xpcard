@@ -11,13 +11,28 @@ To level      ~37 mobs
               ~18m left
 ```
 
-- **Session timer.** Survives `/reload` and resets on a fresh login.
+- **Session timer.** Survives `/reload`, resets on a fresh login, and pauses while you're AFK.
 - **XP gained** this session, from all sources.
 - **XP per hour**, based on your session so far.
 - **Kill counter** with a reset button.
 - **Mobs to level**, estimated from your average XP per kill.
 - **Time to level**, estimated from your XP per hour.
-- No background, adjustable opacity and scale, Shift-drag to move.
+- **Thin XP bar** along the bottom, with rested XP shaded blue.
+
+### Customization
+
+Everything is under **Options → AddOns → XPCard** (or `/xpc options`):
+
+- **Card:** text opacity, scale, compact one-line mode, XP bar on/off, lock position.
+- **Background:** off by default. Turn it on and choose its color, opacity, and an optional thin border.
+- **Rows:** show or hide each line (session, XP gained, XP/hour, kills, mobs to level, time to level).
+- **Session:** pause the timer while AFK (on by default).
+
+Compact mode looks like this:
+
+```
+1:23:45  ·  48.2k xp  ·  35.1k/h  ·  142 kills  ·  ~37 to lvl  ·  ~18m   reset
+```
 
 ## Install
 
@@ -35,12 +50,19 @@ To level      ~37 mobs
 | `/xpc reset` | Reset kill count (same as the button) |
 | `/xpc reset all` | Reset the whole session |
 | `/xpc lock` / `/xpc unlock` | Toggle Shift-dragging |
-| `/xpc opacity 0.6` | Opacity, 0.2–1 |
+| `/xpc opacity 0.6` | Text opacity, 0.2–1 |
 | `/xpc scale 1.2` | Scale, 0.7–1.5 |
+| `/xpc bg` | Toggle background |
+| `/xpc bgopacity 0.5` | Background opacity, 0.05–1 |
+| `/xpc bgcolor 1a1a24` | Background color as hex (no value opens the color picker) |
+| `/xpc compact` | Toggle compact mode |
+| `/xpc bar` | Toggle XP bar |
 | `/xpc center` | Move the card back to the middle |
 | `/xpc options` | Open Options → AddOns → XPCard |
 
 **Move the card:** hold **Shift** and drag it. The rest of the time it ignores the mouse, so clicks go through to the world.
+
+**AFK pause:** the timer stops when the game flags you AFK, either with `/afk` or automatically after about 5 minutes idle. Those first idle minutes before the flag still count.
 
 ## How kills are counted
 

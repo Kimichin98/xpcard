@@ -36,10 +36,28 @@ local function CopyDefaults(src, dst)
 end
 
 local DB_DEFAULTS = {
-    opacity = 1.0,
-    scale   = 1.0,
-    locked  = false,
-    hidden  = false,
+    textOpacity = 1.0,
+    scale       = 1.0,
+    locked      = false,
+    hidden      = false,
+
+    bgEnabled   = false,
+    bgOpacity   = 0.4,
+    bgColor     = { r = 0.05, g = 0.05, b = 0.07 },
+    bgBorder    = false,
+
+    progressBar = true,
+    compact     = false,
+    pauseAFK    = true,
+
+    rows = {
+        session = true,
+        xp      = true,
+        rate    = true,
+        kills   = true,
+        level   = true,
+        time    = true,
+    },
 }
 
 local CHAR_DEFAULTS = {
@@ -49,6 +67,8 @@ local CHAR_DEFAULTS = {
         xp        = 0,
         kills     = 0,
         killXP    = 0,
+        paused    = 0,     -- seconds spent AFK (not counted)
+        -- afkSince = time() while AFK, nil otherwise
     },
 }
 
@@ -87,13 +107,34 @@ end
 -- Session control
 ---------------------------------------------------------------------------
 
+-- Pause the session clock while flagged AFK, so breaks don't drag XP/hour down.
+function ns.UpdateAFK()
+    local s = Session()
+    local afk = XPCardDB.pauseAFK and UnitIsAFK("player") or false
+    if issecret(afk) then return end
+    local now = time()
+    if afk and not s.afkSince then
+        s.afkSince = now
+    elseif not afk and s.afkSince then
+        s.paused = (s.paused or 0) + math.max(0, now - s.afkSince)
+        s.afkSince = nil
+    end
+    if ns.Refresh then ns.Refresh() end
+end
+
+function ns.IsPaused()
+    return Session().afkSince ~= nil
+end
+
 function ns.NewSession()
     local s = Session()
     s.startTime = time()
     s.xp, s.kills, s.killXP = 0, 0, 0
+    s.paused, s.afkSince = 0, nil
     wipe(pendingKills)
     wipe(pendingXP)
     SnapshotXP()
+    ns.UpdateAFK()
 end
 
 function ns.ResetKills()
@@ -115,9 +156,12 @@ end
 
 function ns.GetStats()
     local s = Session()
-    local elapsed = math.max(0, time() - (s.startTime or time()))
+    local now = time()
+    local afk = s.afkSince and (now - s.afkSince) or 0
+    local elapsed = math.max(0, now - (s.startTime or now) - (s.paused or 0) - afk)
     local stats = {
         elapsed = elapsed,
+        paused  = s.afkSince ~= nil,
         xp      = s.xp,
         kills   = s.kills,
         maxLevel = ns.AtMaxLevel(),
@@ -213,6 +257,12 @@ function handlers.ADDON_LOADED(name)
     if name ~= ADDON_NAME then return end
     frame:UnregisterEvent("ADDON_LOADED")
 
+    -- Migrate pre-release "opacity" (whole card) to "textOpacity".
+    if type(XPCardDB) == "table" and XPCardDB.opacity ~= nil then
+        if XPCardDB.textOpacity == nil then XPCardDB.textOpacity = XPCardDB.opacity end
+        XPCardDB.opacity = nil
+    end
+
     XPCardDB = CopyDefaults(DB_DEFAULTS, XPCardDB)
     XPCardCharDB = CopyDefaults(CHAR_DEFAULTS, XPCardCharDB)
 
@@ -226,8 +276,13 @@ function handlers.PLAYER_ENTERING_WORLD(isInitialLogin, isReloadingUi)
         ns.NewSession()           -- fresh login: new session
     else
         SnapshotXP()              -- /reload or zoning: keep session
+        ns.UpdateAFK()
     end
     if ns.Refresh then ns.Refresh() end
+end
+
+function handlers.PLAYER_FLAGS_CHANGED(unit)
+    if unit == "player" then ns.UpdateAFK() end
 end
 
 function handlers.PLAYER_XP_UPDATE(unit)
@@ -298,6 +353,7 @@ frame:RegisterEvent("ADDON_LOADED")
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")
 frame:RegisterEvent("PLAYER_XP_UPDATE")
 frame:RegisterEvent("PLAYER_LEVEL_UP")
+frame:RegisterEvent("PLAYER_FLAGS_CHANGED")
 
 -- Only one kill source at a time, so kills are never double counted.
 if IsEventValid("PARTY_KILL") then
