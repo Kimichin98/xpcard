@@ -4,10 +4,11 @@
 
 local _, ns = ...
 
-local WIDTH      = 172
+local WIDTH      = 140
 local ROW_HEIGHT = 15
 local PAD        = 6
-local RESET_W    = 34
+local FOOTER_H   = 12
+local FOOTER_GAP = 3
 local BAR_H      = 2
 local BAR_GAP    = 4
 
@@ -119,11 +120,11 @@ end
 
 local function BuildResetButton()
     local b = CreateFrame("Button", nil, content)
-    b:SetSize(RESET_W, ROW_HEIGHT)
+    b:SetSize(60, FOOTER_H)
 
     local text = b:CreateFontString(nil, "OVERLAY", "XPCardLabelFont")
     text:SetPoint("RIGHT")
-    text:SetText("reset")
+    text:SetText("reset kills")
     text:SetTextColor(unpack(MUTED))
     b.text = text
 
@@ -216,29 +217,32 @@ end
 -- Layout
 ---------------------------------------------------------------------------
 
-local function BarSpace()
-    if XPCardDB.progressBar and not ns.AtMaxLevel() then
-        return BAR_GAP + BAR_H
-    end
-    return 0
+local function ShowBar()
+    return XPCardDB.progressBar and not ns.AtMaxLevel()
 end
 
-local function LayoutBar()
-    local show = XPCardDB.progressBar and not ns.AtMaxLevel()
+-- Places the XP bar just below `y` and returns the new y.
+local function LayoutBar(y)
+    local show = ShowBar()
     restedBar:SetShown(show)
     xpBar:SetShown(show)
-    if show then
-        restedBar:ClearAllPoints()
-        restedBar:SetPoint("BOTTOMLEFT", content, "BOTTOMLEFT", PAD, PAD)
-        restedBar:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", -PAD, PAD)
-        restedBar:SetHeight(BAR_H)
-    end
+    if not show then return y end
+    y = y - BAR_GAP
+    restedBar:ClearAllPoints()
+    restedBar:SetPoint("TOPLEFT", content, "TOPLEFT", PAD, y)
+    restedBar:SetPoint("TOPRIGHT", content, "TOPRIGHT", -PAD, y)
+    restedBar:SetHeight(BAR_H)
+    return y - BAR_H
+end
+
+local function SizeResetButton()
+    resetBtn:SetSize(math.ceil(resetBtn.text:GetStringWidth() or 40) + 2, FOOTER_H)
 end
 
 -- Compact width follows the text; rounded up so it doesn't jitter every tick.
 local function SizeCompact()
     local w = compactText:GetStringWidth() or 0
-    if XPCardDB.rows.kills then w = w + 6 + RESET_W end
+    if XPCardDB.rows.kills then w = w + 10 + resetBtn:GetWidth() end
     w = math.ceil((w + PAD * 2) / 10) * 10
     card:SetWidth(math.max(80, w))
 end
@@ -246,25 +250,28 @@ end
 local function Layout()
     local db = XPCardDB
     local showReset = db.rows.kills
+    local y = -PAD
 
     if db.compact then
+        -- One line; "reset" sits at the end of the line.
         for _, key in ipairs(ROW_ORDER) do
             rows[key].label:Hide()
             rows[key].value:Hide()
         end
         compactText:ClearAllPoints()
-        compactText:SetPoint("TOPLEFT", content, "TOPLEFT", PAD, -PAD)
+        compactText:SetPoint("TOPLEFT", content, "TOPLEFT", PAD, y)
         compactText:Show()
 
+        resetBtn.text:SetText("reset kills")
+        SizeResetButton()
         resetBtn:ClearAllPoints()
-        resetBtn:SetPoint("TOPRIGHT", content, "TOPRIGHT", -PAD, -PAD + 1)
+        resetBtn:SetPoint("TOPRIGHT", content, "TOPRIGHT", -PAD, y)
 
-        card:SetHeight(PAD * 2 + ROW_HEIGHT + BarSpace())
+        y = LayoutBar(y - ROW_HEIGHT)
+        card:SetHeight(-y + PAD)
         SizeCompact()
     else
         compactText:Hide()
-        local valueInset = showReset and (PAD + RESET_W) or PAD
-        local y = -PAD
         local count = 0
 
         for _, key in ipairs(ROW_ORDER) do
@@ -276,25 +283,33 @@ local function Layout()
                 row.label:ClearAllPoints()
                 row.label:SetPoint("TOPLEFT", content, "TOPLEFT", PAD, y)
                 row.value:ClearAllPoints()
-                row.value:SetPoint("TOPRIGHT", content, "TOPRIGHT", -valueInset, y)
-                if key == "kills" then
-                    resetBtn:ClearAllPoints()
-                    resetBtn:SetPoint("TOPRIGHT", content, "TOPRIGHT", -PAD, y + 1)
-                end
+                row.value:SetPoint("TOPRIGHT", content, "TOPRIGHT", -PAD, y)
                 y = y - ROW_HEIGHT
                 count = count + 1
             end
         end
+        if count == 0 then y = y - ROW_HEIGHT end
 
         -- "Time to level" has no label of its own unless "To level" is hidden.
         rows.time.label:SetText(db.rows.level and "" or "Time to level")
 
+        y = LayoutBar(y)
+
+        -- Footer: small "reset kills" link, bottom-right.
+        if showReset then
+            resetBtn.text:SetText("reset kills")
+            SizeResetButton()
+            y = y - FOOTER_GAP
+            resetBtn:ClearAllPoints()
+            resetBtn:SetPoint("TOPRIGHT", content, "TOPRIGHT", -PAD, y)
+            y = y - FOOTER_H
+        end
+
         card:SetWidth(WIDTH)
-        card:SetHeight(PAD * 2 + math.max(1, count) * ROW_HEIGHT + BarSpace())
+        card:SetHeight(-y + PAD)
     end
 
     resetBtn:SetShown(showReset)
-    LayoutBar()
 end
 
 ---------------------------------------------------------------------------
@@ -378,8 +393,8 @@ function ns.Refresh()
     end
 
     local clock = Clock(s.elapsed)
-    local mobs = (not s.maxLevel and s.mobsToLevel) and ("~" .. Num(s.mobsToLevel) .. " mobs") or nil
-    local eta = (not s.maxLevel and s.secondsToLevel) and ("~" .. Duration(s.secondsToLevel) .. " left") or nil
+    local mobs = (not s.maxLevel and s.mobsToLevel) and (Num(s.mobsToLevel) .. " mobs") or nil
+    local eta = (not s.maxLevel and s.secondsToLevel) and (Duration(s.secondsToLevel) .. " left") or nil
 
     if db.compact then
         local parts = {}
@@ -394,10 +409,10 @@ function ns.Refresh()
             if r.level or r.time then parts[#parts + 1] = "max level" end
         else
             if r.level then
-                parts[#parts + 1] = s.mobsToLevel and ("~" .. Num(s.mobsToLevel) .. " to lvl") or "— to lvl"
+                parts[#parts + 1] = s.mobsToLevel and (Num(s.mobsToLevel) .. " to lvl") or "— to lvl"
             end
             if r.time and s.secondsToLevel then
-                parts[#parts + 1] = Colorize("~" .. Duration(s.secondsToLevel), MUTED)
+                parts[#parts + 1] = Colorize(Duration(s.secondsToLevel) .. " left", MUTED)
             end
         end
         compactText:SetText(table.concat(parts, Colorize("  ·  ", MUTED)))

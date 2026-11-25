@@ -6,9 +6,11 @@ A minimal, background-less XP tracker for **World of Warcraft: Forever**.
 Session        1:23:45
 XP gained       48,210
 XP / hour       35,100
-Kills              142   reset
-To level      ~37 mobs
-              ~18m left
+Kills              142
+To level       37 mobs
+           18m left
+━━━━━━━━━━━━━━━━━━━━━━
+           reset kills
 ```
 
 - **Session timer.** Survives `/reload`, resets on a fresh login, and pauses while you're AFK.
@@ -31,7 +33,7 @@ Everything is under **Options → AddOns → XPCard** (or `/xpc options`):
 Compact mode looks like this:
 
 ```
-1:23:45  ·  48.2k xp  ·  35.1k/h  ·  142 kills  ·  ~37 to lvl  ·  ~18m   reset
+1:23:45  ·  48.2k xp  ·  35.1k/h  ·  142 kills  ·  37 to lvl  ·  18m left   reset
 ```
 
 ## Install

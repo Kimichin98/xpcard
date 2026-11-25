@@ -40,8 +40,8 @@ A minimal, background-less XP tracking card for **World of Warcraft: Forever**.
 | **XP gained** | Total XP earned this session (all sources) | `48,210` |
 | **XP / hour** | `sessionXP / elapsedHours` | `35,100` |
 | **Kills** | Mobs killed (manually resettable) | `142` |
-| **To level** | Estimated mobs left until next level | `~37 mobs` |
-| **Time to level** *(secondary line)* | `remainingXP / XPperHour` | `~18m` |
+| **To level** | Estimated mobs left until next level | `37 mobs` |
+| **Time to level** *(secondary line)* | `remainingXP / XPperHour` | `18m left` |
 
 - Show `—` for any value that can't be computed yet (e.g. XP/hour in the first 10 seconds, To level before the first kill).
 - At level 60: replace "To level" and "Time to level" with `Max level`.
@@ -100,8 +100,9 @@ The timer uses `time()` (epoch seconds) for the start timestamp so it survives `
 - **No background, no border.** Text only, so it floats over the world.
 - Font: `GameFontHighlightSmall` (or `NumberFontNormal` for values), with `OUTLINE` or shadow for readability over any terrain.
 - Layout: two columns, labels left-aligned (muted grey `#B0B0B0`) and values right-aligned (white). XP/hour value accented in light purple `#C9A2FF` (the XP-bar color).
-- Approximate size: 170 × 110 px. Width fits the content.
-- Reset button: a small text-only `reset` button on the right side of the Kills row (plain text, because the game font may not include a ↺ glyph). Text highlights on hover, with a tooltip: "Reset kill count".
+- Approximate size: 140 × 123 px. Width fits the content.
+- Reset button: a small grey `reset kills` link in a footer at the bottom-right, below the XP bar, so it adds height instead of width. In compact mode it's a `reset` link at the end of the line.
+- No `~` before estimates: the game font renders it as a raised `˜`. Text highlights on hover, with a tooltip: "Reset kill count".
 
 ### 3.2 Mockup
 
@@ -109,9 +110,11 @@ The timer uses `time()` (epoch seconds) for the start timestamp so it survives `
 Session        1:23:45
 XP gained       48,210
 XP / hour       35,100
-Kills              142   reset
-To level      ~37 mobs
-              ~18m left
+Kills              142
+To level       37 mobs
+           18m left
+━━━━━━━━━━━━━━━━━━━━━━
+           reset kills
 ```
 
 ### 3.3 Interaction
@@ -134,7 +137,7 @@ To level      ~37 mobs
 
 - Each row can be hidden; the card height reflows. Hiding *Kills* also hides the reset button. If *To level* is hidden, the *Time to level* row gets its own label.
 - XP bar: 2px bar along the bottom, current XP in the accent color with rested XP (`GetXPExhaustion()`) shaded blue behind it. Hidden at max level.
-- Compact mode: one line, `1:23:45 · 48.2k xp · 35.1k/h · 142 kills · ~37 to lvl · ~18m`, honoring the row toggles. Width follows the text, rounded up to 10px to avoid jitter.
+- Compact mode: one line, `1:23:45 · 48.2k xp · 35.1k/h · 142 kills · 37 to lvl · 18m left`, honoring the row toggles. Width follows the text, rounded up to 10px to avoid jitter.
 
 ### 3.6 AFK pause (on by default)
 
