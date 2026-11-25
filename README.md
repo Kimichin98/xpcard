@@ -78,24 +78,8 @@ If `PARTY_KILL` doesn't exist on the client, XPCard falls back to the "*X dies, 
 
 ## Development
 
-Keep the repo anywhere and link the addon folder into the game so you only edit one copy:
-
-```bat
-mklink /J "C:\Program Files (x86)\World of Warcraft\_forever_\Interface\AddOns\XPCard" "C:\path\to\xpcard\XPCard"
-```
-
-Then edit and `/reload`. Turn on Lua errors with `/console scriptErrors 1`. `/xpc debug` prints the version and which kill source is active.
-
 The full design spec is in [`docs/XPCard_Spec.md`](docs/XPCard_Spec.md).
 
-### Releasing
-
-Push a tag like `v0.1.0`. GitHub Actions zips the `XPCard/` folder and attaches it to a new release.
-
-```bash
-git tag v0.1.0
-git push origin v0.1.0
-```
 
 ## License
 
