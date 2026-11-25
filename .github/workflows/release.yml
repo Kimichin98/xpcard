@@ -1,0 +1,30 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Stamp version into the .toc
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          sed -i "s/^## Version: .*/## Version: ${VERSION}/" XPCard/XPCard.toc
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+
+      - name: Zip the addon folder
+        run: zip -r "XPCard-${VERSION}.zip" XPCard
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: XPCard-${{ env.VERSION }}.zip
+          generate_release_notes: true

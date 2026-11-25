@@ -1,0 +1,13 @@
+## Interface: 16001
+## Title: XPCard
+## Notes: Minimal XP per hour, kill counter and time-to-level card.
+## Author: Kimichin98
+## Version: 0.1.0
+## X-License: MIT
+## X-Website: https://github.com/Kimichin98/xpcard
+## SavedVariables: XPCardDB
+## SavedVariablesPerCharacter: XPCardCharDB
+
+Core.lua
+UI.lua
+Options.lua
