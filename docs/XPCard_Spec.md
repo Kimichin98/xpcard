@@ -1,6 +1,6 @@
 # XPCard — Addon Specification
 
-> Status: v0.1.0. Sections 3.4–3.6 were added after the first in-game test.
+> Status: v0.1.0. Sections 2.6, 3.4–3.6 and the 2.3 hardening were added after in-game testing.
 
 A minimal, background-less XP tracking card for **World of Warcraft: Forever**.
 
@@ -71,7 +71,21 @@ Use this order of strategies and **subscribe to only one at a time** to avoid do
    - Payload text looks like "*Mob dies, you gain N experience.*" Skip it entirely if `issecretvalue(text)`.
    - Ignore messages without "dies" (localized: build the pattern from the `COMBATLOG_XPGAIN_FIRSTPERSON` global string, not a hard-coded English string).
 
+**Hardening after in-game testing.** Kills stopped counting after a multi-mob pull, most likely because the attacker GUID and/or `UnitXP` were secret during combat:
+- When solo (`not IsInGroup()`), every `PARTY_KILL` counts immediately (it only fires for you or your pet), whether the attacker is secret or not.
+- In a group, the attacker counts as "you" if it equals your GUID or your pet's GUID.
+- If `UnitXP`/`UnitXPMax` are secret, XP is marked *deferred* and kills are queued. A 1 s poll re-reads XP; once it's readable, the combined delta goes to `xp` and `killXP`, and queued uncounted (group) kills are counted.
+- The UI only uses the last readable XP snapshot (`ns.GetXPSnapshot()`), never raw `UnitXP`, so it can't error on a secret value.
+- `/xpc debug` prints counters: PARTY_KILL events, hidden attackers, XP-hidden episodes, catch-up batches, loot signals, gold credits.
+
 **Kill XP attribution:** a positive XP delta from `PLAYER_XP_UPDATE` within 1.5 s of a kill (before or after) goes into `killXP`. Every other XP delta (quests, exploration, turn-ins) goes only into `sessionXP`.
+
+### 2.3b Gold looted (optional rows, on by default)
+
+- `PLAYER_MONEY`: `delta = GetMoney() - lastMoney`. Only positive deltas count, never while a merchant is open (`MERCHANT_SHOW`/`MERCHANT_CLOSED`).
+- A delta counts as loot only within 1.5 s of a loot signal: `LOOT_READY`, `LOOT_OPENED`, `LOOT_CLOSED` or `CHAT_MSG_MONEY`. Matching works in either order (money first, or signal first). The chat event is only used as a signal; its possibly-secret text is never read.
+- This excludes quest rewards, mail, trade and vendor sales, and includes party loot shares.
+- Rows: **Gold looted** (`GetCoinTextureString`, with coin icons) and **Gold / hour** (copper dropped). Compact: `4.1g · 2.9g/h` in gold color.
 
 ### 2.4 XP tracking
 
@@ -86,8 +100,7 @@ Use this order of strategies and **subscribe to only one at a time** to avoid do
 | Fresh login (`PLAYER_ENTERING_WORLD`, `isInitialLogin == true`) | New session: timer, XP and kills reset |
 | `/reload` (`isReloadingUi == true`) | **Keep** the session (restore from SavedVariablesPerCharacter) |
 | Zoning / loading screens | No effect |
-| Reset button | Resets **kills and killXP** (so the kill average stays consistent). Timer and XP gained keep running |
-| `/xpc reset all` | Resets the entire session |
+| Reset button / `/xpc reset` | Resets the **entire session**: timer, XP, kills, killXP, gold |
 
 The timer uses `time()` (epoch seconds) for the start timestamp so it survives `/reload`. Display updates through a 1-second `C_Timer.NewTicker`, not `OnUpdate`.
 
@@ -101,7 +114,7 @@ The timer uses `time()` (epoch seconds) for the start timestamp so it survives `
 - Font: `GameFontHighlightSmall` (or `NumberFontNormal` for values), with `OUTLINE` or shadow for readability over any terrain.
 - Layout: two columns, labels left-aligned (muted grey `#B0B0B0`) and values right-aligned (white). XP/hour value accented in light purple `#C9A2FF` (the XP-bar color).
 - Approximate size: 140 × 123 px. Width fits the content.
-- Reset button: a small grey `reset kills` link in a footer at the bottom-right, below the XP bar, so it adds height instead of width. In compact mode it's a `reset` link at the end of the line.
+- Reset button: a small grey `reset` link in a footer at the bottom-right, below the XP bar, so it adds height instead of width. It resets the whole session and is always shown. In compact mode it sits at the end of the line.
 - No `~` before estimates: the game font renders it as a raised `˜`. Text highlights on hover, with a tooltip: "Reset kill count".
 
 ### 3.2 Mockup
@@ -112,9 +125,11 @@ XP gained       48,210
 XP / hour       35,100
 Kills              142
 To level       37 mobs
-           18m left
+              18m left
+Gold looted   4g 12s 30c
+Gold / hour     2g 85s
 ━━━━━━━━━━━━━━━━━━━━━━
-           reset kills
+                 reset
 ```
 
 ### 3.3 Interaction
@@ -135,7 +150,7 @@ To level       37 mobs
 
 ### 3.5 Rows, XP bar, compact mode
 
-- Each row can be hidden; the card height reflows. Hiding *Kills* also hides the reset button. If *To level* is hidden, the *Time to level* row gets its own label.
+- Each row can be hidden; the card height reflows. If *To level* is hidden, the *Time to level* row gets its own label.
 - XP bar: 2px bar along the bottom, current XP in the accent color with rested XP (`GetXPExhaustion()`) shaded blue behind it. Hidden at max level.
 - Compact mode: one line, `1:23:45 · 48.2k xp · 35.1k/h · 142 kills · 37 to lvl · 18m left`, honoring the row toggles. Width follows the text, rounded up to 10px to avoid jitter.
 
@@ -153,8 +168,7 @@ To level       37 mobs
 | Command | Action |
 |---|---|
 | `/xpc` | Toggle card visibility |
-| `/xpc reset` | Reset kills (same as the button) |
-| `/xpc reset all` | Reset the whole session |
+| `/xpc reset` | Reset the whole session (same as the button) |
 | `/xpc lock` / `/xpc unlock` | Toggle dragging |
 | `/xpc opacity <0.2–1>` | Set opacity |
 | `/xpc options` | Open the settings page |
@@ -253,6 +267,6 @@ Not used: `COMBAT_LOG_EVENT_UNFILTERED` (unavailable on this client).
 
 ## 9. Out of scope (v1)
 
-- Gold per hour, reputation, honor tracking
+- Reputation, honor tracking
 - History graphs across sessions
 - LibDataBroker / Titan Panel integration

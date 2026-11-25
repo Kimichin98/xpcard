@@ -17,11 +17,12 @@ local VALUE_COLOR = { 1, 1, 1 }
 local ACCENT      = { 0.79, 0.64, 1.00 }   -- #C9A2FF (XP bar purple)
 local MUTED       = { 0.55, 0.55, 0.55 }
 local RESTED      = { 0.35, 0.55, 1.00 }   -- rested XP blue
+local GOLD        = { 1.00, 0.82, 0.00 }
 
 local WHITE = "Interface\\Buttons\\WHITE8X8"
 
 -- Row order, top to bottom.
-local ROW_ORDER = { "session", "xp", "rate", "kills", "level", "time" }
+local ROW_ORDER = { "session", "xp", "rate", "kills", "level", "time", "gold", "goldRate" }
 local ROW_LABELS = {
     session = "Session",
     xp      = "XP gained",
@@ -29,6 +30,8 @@ local ROW_LABELS = {
     kills   = "Kills",
     level   = "To level",
     time    = "",          -- sub-line under "To level"
+    gold    = "Gold looted",
+    goldRate = "Gold / hour",
 }
 
 local card, content, rows, compactText, resetBtn
@@ -61,6 +64,31 @@ local function Duration(sec)
     local m = math.floor((sec % 3600) / 60)
     if h > 0 then return string.format("%dh %02dm", h, m) end
     return string.format("%dm", m)
+end
+
+-- Full coin string with the game's coin icons, e.g. "12[g] 34[s] 5[c]".
+local function Money(copper)
+    copper = math.floor(copper or 0)
+    if GetCoinTextureString then return GetCoinTextureString(copper) end
+    local g, sv, c = math.floor(copper / 10000), math.floor(copper / 100) % 100, copper % 100
+    if g > 0 then return string.format("%dg %ds %dc", g, sv, c) end
+    if sv > 0 then return string.format("%ds %dc", sv, c) end
+    return string.format("%dc", c)
+end
+
+-- Rates drop the copper so the line stays short.
+local function MoneyRate(copper)
+    copper = copper or 0
+    if copper >= 100 then copper = math.floor(copper / 100) * 100 end
+    return Money(copper)
+end
+
+-- Compact: "12.3g", "45s", "7c".
+local function ShortMoney(copper)
+    copper = copper or 0
+    if copper >= 10000 then return string.format("%.1fg", copper / 10000) end
+    if copper >= 100 then return string.format("%ds", math.floor(copper / 100)) end
+    return string.format("%dc", math.floor(copper))
 end
 
 local function Colorize(text, c)
@@ -124,14 +152,15 @@ local function BuildResetButton()
 
     local text = b:CreateFontString(nil, "OVERLAY", "XPCardLabelFont")
     text:SetPoint("RIGHT")
-    text:SetText("reset kills")
+    text:SetText("reset")
     text:SetTextColor(unpack(MUTED))
     b.text = text
 
     b:SetScript("OnEnter", function(self)
         self.text:SetTextColor(unpack(ACCENT))
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText("Reset kill count")
+        GameTooltip:SetText("Reset session")
+        GameTooltip:AddLine("Clears the timer, XP, kills and gold.", 1, 1, 1)
         GameTooltip:AddLine("Shift-drag the card to move it.", 0.8, 0.8, 0.8)
         GameTooltip:AddLine("/xpc options for settings.", 0.8, 0.8, 0.8)
         GameTooltip:Show()
@@ -140,7 +169,7 @@ local function BuildResetButton()
         self.text:SetTextColor(unpack(MUTED))
         GameTooltip:Hide()
     end)
-    b:SetScript("OnClick", function() ns.ResetKills() end)
+    b:SetScript("OnClick", function() ns.ResetAll() end)
     return b
 end
 
@@ -242,14 +271,13 @@ end
 -- Compact width follows the text; rounded up so it doesn't jitter every tick.
 local function SizeCompact()
     local w = compactText:GetStringWidth() or 0
-    if XPCardDB.rows.kills then w = w + 10 + resetBtn:GetWidth() end
+    w = w + 10 + resetBtn:GetWidth()
     w = math.ceil((w + PAD * 2) / 10) * 10
     card:SetWidth(math.max(80, w))
 end
 
 local function Layout()
     local db = XPCardDB
-    local showReset = db.rows.kills
     local y = -PAD
 
     if db.compact then
@@ -262,7 +290,6 @@ local function Layout()
         compactText:SetPoint("TOPLEFT", content, "TOPLEFT", PAD, y)
         compactText:Show()
 
-        resetBtn.text:SetText("reset kills")
         SizeResetButton()
         resetBtn:ClearAllPoints()
         resetBtn:SetPoint("TOPRIGHT", content, "TOPRIGHT", -PAD, y)
@@ -295,21 +322,18 @@ local function Layout()
 
         y = LayoutBar(y)
 
-        -- Footer: small "reset kills" link, bottom-right.
-        if showReset then
-            resetBtn.text:SetText("reset kills")
-            SizeResetButton()
-            y = y - FOOTER_GAP
-            resetBtn:ClearAllPoints()
-            resetBtn:SetPoint("TOPRIGHT", content, "TOPRIGHT", -PAD, y)
-            y = y - FOOTER_H
-        end
+        -- Footer: small "reset" link, bottom-right.
+        SizeResetButton()
+        y = y - FOOTER_GAP
+        resetBtn:ClearAllPoints()
+        resetBtn:SetPoint("TOPRIGHT", content, "TOPRIGHT", -PAD, y)
+        y = y - FOOTER_H
 
         card:SetWidth(WIDTH)
         card:SetHeight(-y + PAD)
     end
 
-    resetBtn:SetShown(showReset)
+    resetBtn:Show()
 end
 
 ---------------------------------------------------------------------------
@@ -371,11 +395,10 @@ end
 
 local function UpdateBar()
     if not xpBar:IsShown() then return end
-    local max = UnitXPMax("player") or 0
-    local cur = UnitXP("player") or 0
+    local cur, max = ns.GetXPSnapshot()   -- never secret
     local rested = GetXPExhaustion and GetXPExhaustion() or 0
-    if ns.issecret(max) or ns.issecret(cur) or max <= 0 then return end
-    if ns.issecret(rested) then rested = 0 end
+    if max <= 0 then return end
+    if rested == nil or ns.issecret(rested) then rested = 0 end
     xpBar:SetMinMaxValues(0, max)
     xpBar:SetValue(cur)
     restedBar:SetMinMaxValues(0, max)
@@ -415,6 +438,10 @@ function ns.Refresh()
                 parts[#parts + 1] = Colorize(Duration(s.secondsToLevel) .. " left", MUTED)
             end
         end
+        if r.gold then parts[#parts + 1] = Colorize(ShortMoney(s.gold), GOLD) end
+        if r.goldRate then
+            parts[#parts + 1] = Colorize((s.goldPerHour and ShortMoney(s.goldPerHour) or "—") .. "/h", GOLD)
+        end
         compactText:SetText(table.concat(parts, Colorize("  ·  ", MUTED)))
         SizeCompact()
     else
@@ -423,6 +450,8 @@ function ns.Refresh()
         rows.xp.value:SetText(Num(s.xp))
         rows.rate.value:SetText(s.xpPerHour and Num(s.xpPerHour) or "—")
         rows.kills.value:SetText(Num(s.kills))
+        rows.gold.value:SetText(Money(s.gold))
+        rows.goldRate.value:SetText(s.goldPerHour and MoneyRate(s.goldPerHour) or "—")
 
         if s.maxLevel then
             rows.level.value:SetText("Max level")

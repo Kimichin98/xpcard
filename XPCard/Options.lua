@@ -81,9 +81,12 @@ local function BuildSettings()
     Checkbox("RowSession", db.rows, "session", "Session time", true)
     Checkbox("RowXP", db.rows, "xp", "XP gained", true)
     Checkbox("RowRate", db.rows, "rate", "XP / hour", true)
-    Checkbox("RowKills", db.rows, "kills", "Kills (and reset button)", true)
+    Checkbox("RowKills", db.rows, "kills", "Kills", true)
     Checkbox("RowLevel", db.rows, "level", "Mobs to level", true)
     Checkbox("RowTime", db.rows, "time", "Time to level", true)
+    Checkbox("RowGold", db.rows, "gold", "Gold looted", true,
+        "Money picked up from loot this session. Quest rewards, mail and vendor sales don't count.")
+    Checkbox("RowGoldRate", db.rows, "goldRate", "Gold / hour", true)
 
     Header("Session")
     Checkbox("PauseAFK", db, "pauseAFK", "Pause timer while AFK", true,
@@ -118,8 +121,7 @@ end
 
 local HELP = {
     "/xpc - show or hide the card",
-    "/xpc reset - reset kill count",
-    "/xpc reset all - reset the whole session",
+    "/xpc reset - reset the session (timer, XP, kills, gold)",
     "/xpc lock | unlock - toggle Shift-dragging",
     "/xpc opacity <0.2-1> - text opacity",
     "/xpc scale <0.7-1.5> - card scale",
@@ -147,13 +149,8 @@ SlashCmdList.XPCARD = function(input)
     if cmd == "" then
         ns.ToggleShown()
     elseif cmd == "reset" then
-        if arg == "all" then
-            ns.ResetAll()
-            ns.Print("Session reset.")
-        else
-            ns.ResetKills()
-            ns.Print("Kill count reset.")
-        end
+        ns.ResetAll()
+        ns.Print("Session reset.")
     elseif cmd == "lock" or cmd == "unlock" then
         SetValue("Locked", XPCardDB, "locked", cmd == "lock")
         ns.Print(cmd == "lock" and "Card locked." or "Card unlocked. Shift-drag to move.")
@@ -194,8 +191,12 @@ SlashCmdList.XPCARD = function(input)
             ns.Print("Options panel unavailable on this client.")
         end
     elseif cmd == "debug" then
+        local d = ns.debugStats
         ns.Print("v" .. ns.version .. ", kill source: " .. tostring(ns.killSource)
             .. ", AFK paused: " .. tostring(ns.IsPaused()))
+        print(string.format("  PARTY_KILL: %d (hidden attacker: %d)", d.partyKill, d.partyKillSecret))
+        print(string.format("  XP hidden in combat: %d times, catch-up batches: %d", d.xpSecret, d.deferredBatches))
+        print(string.format("  Loot signals: %d, gold credits: %d", d.lootSignals, d.goldCredits))
     else
         ns.Print("Commands:")
         for _, line in ipairs(HELP) do print("  " .. line) end
